@@ -1,0 +1,152 @@
+@import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@300;400;500;600&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg: #E9E6DF;
+  --card: #F0EDE7;
+  --navy: #1F3A8F;
+  --navy-dark: #152A6E;
+  --navy-light: #2D4EAF;
+  --charcoal: #161719;
+  --green: #1A6B3C;
+  --crimson: #B01C2E;
+  --border: #D8D4CC;
+  --muted: #6B6860;
+  --font-display: 'Barlow Condensed', sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background-color: var(--bg);
+  color: var(--charcoal);
+  font-family: var(--font-display);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Typography */
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-display);
+  font-weight: 600;
+  color: var(--charcoal);
+}
+
+.font-mono, code, pre {
+  font-family: var(--font-mono);
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: var(--bg);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--muted);
+}
+
+/* Utility classes */
+@layer components {
+  .card {
+    @apply bg-card rounded-lg border border-[#D8D4CC] shadow-card;
+  }
+
+  .btn-primary {
+    @apply bg-navy text-white font-display font-semibold tracking-wide px-6 py-2.5 rounded-md
+           hover:bg-navy-dark active:scale-95 transition-all duration-150
+           focus:outline-none focus:ring-2 focus:ring-navy focus:ring-offset-2 focus:ring-offset-background;
+  }
+
+  .btn-secondary {
+    @apply bg-card text-charcoal font-display font-medium tracking-wide px-6 py-2.5 rounded-md
+           border border-[#D8D4CC] hover:border-navy hover:text-navy
+           active:scale-95 transition-all duration-150;
+  }
+
+  .btn-danger {
+    @apply bg-crimson text-white font-display font-semibold tracking-wide px-6 py-2.5 rounded-md
+           hover:bg-crimson-light active:scale-95 transition-all duration-150;
+  }
+
+  .stat-green {
+    @apply text-green font-mono font-medium;
+  }
+
+  .stat-red {
+    @apply text-crimson font-mono font-medium;
+  }
+
+  .label {
+    @apply text-[#6B6860] text-xs font-display font-medium uppercase tracking-widest;
+  }
+
+  .grid-line {
+    @apply border-t border-[#D8D4CC];
+  }
+
+  .badge-running {
+    @apply inline-flex items-center gap-1.5 bg-green/10 text-green text-xs font-mono
+           px-2.5 py-1 rounded-full border border-green/20;
+  }
+
+  .badge-stopped {
+    @apply inline-flex items-center gap-1.5 bg-crimson/10 text-crimson text-xs font-mono
+           px-2.5 py-1 rounded-full border border-crimson/20;
+  }
+
+  .badge-idle {
+    @apply inline-flex items-center gap-1.5 bg-[#6B6860]/10 text-[#6B6860] text-xs font-mono
+           px-2.5 py-1 rounded-full border border-[#6B6860]/20;
+  }
+}
+
+/* Ticker animation */
+.ticker-wrap {
+  overflow: hidden;
+  white-space: nowrap;
+}
+.ticker-inner {
+  display: inline-flex;
+  animation: ticker 40s linear infinite;
+}
+
+/* Grain overlay */
+.grain::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.025;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+  background-size: 200px 200px;
+  z-index: 9999;
+}
+
+/* Staggered animation delays */
+.delay-100 { animation-delay: 100ms; }
+.delay-200 { animation-delay: 200ms; }
+.delay-300 { animation-delay: 300ms; }
+.delay-400 { animation-delay: 400ms; }
+.delay-500 { animation-delay: 500ms; }
+
+/* Opacity for stagger start */
+.animate-fade-up { opacity: 0; }
