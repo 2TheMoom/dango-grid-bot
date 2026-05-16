@@ -1,7 +1,12 @@
 "use client";
 
-export default function EpochStats({ walletAddress }: { walletAddress: string }) {
-  const volume = 0;   // will be fetched from Dango SDK
+interface Props {
+  walletAddress: string;
+  userId: string | null;
+}
+
+export default function EpochStats({ walletAddress, userId }: Props) {
+  const volume = 0;
   const target = 5000;
   const pct = Math.min(100, (volume / target) * 100);
 
@@ -12,13 +17,19 @@ export default function EpochStats({ walletAddress }: { walletAddress: string })
         <div className="flex justify-between mb-1.5">
           <span className="label">Volume</span>
           <span className="font-mono text-xs text-charcoal font-medium">
-            ${volume.toLocaleString()} <span className="text-[#6B6860]">/ ${target.toLocaleString()}</span>
+            ${volume.toLocaleString()}{" "}
+            <span className="text-[#6B6860]">/ ${target.toLocaleString()}</span>
           </span>
         </div>
         <div className="h-2 bg-background rounded-full overflow-hidden">
-          <div className="h-full bg-navy rounded-full transition-all duration-500" style={{ width: `${pct}%` }} />
+          <div
+            className="h-full bg-navy rounded-full transition-all duration-500"
+            style={{ width: `${pct}%` }}
+          />
         </div>
-        <p className="font-mono text-xs text-[#6B6860] mt-1">{pct.toFixed(0)}% of weekly target</p>
+        <p className="font-mono text-xs text-[#6B6860] mt-1">
+          {pct.toFixed(0)}% of weekly target
+        </p>
       </div>
       <div className="grid-line pt-4 grid grid-cols-2 gap-3">
         <div>
