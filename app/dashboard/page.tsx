@@ -15,6 +15,7 @@ import {
   ensureBotState,
   saveStrategy,
   updateBotState,
+  clearSession,
   supabase,
 } from "@/lib/supabase/auth";
 
@@ -48,7 +49,7 @@ const DEFAULT_STRATEGY: Strategy = {
 
 function shortenAddress(addr: string) {
   if (!addr || addr.length < 10) return addr;
-  return `${addr.slice(0, 6)}...${addr.slice(-4)}`;
+  return addr.slice(0, 6) + "..." + addr.slice(-4);
 }
 
 function dbStrategyToLocal(db: any): Strategy {
@@ -74,7 +75,52 @@ export default function DashboardPage() {
   const [editingStrategy, setEditingStrategy] = useState(false);
   const [loading, setLoading] = useState(false);
   const [saveStatus, setSaveStatus] = useState<"" | "saving" | "saved">("");
+  const [connectError, setConnectError] = useState<string | null>(null);
+  const [initialising, setInitialising] = useState(true);
 
+  // On mount — clear any stale Supabase session so dashboard always starts fresh
+  useEffect(() => {
+    const init = async () => {
+      // Check if MetaMask is actually connected
+      const { ethereum } = window as any;
+      let activeAddress: string | null = null;
+      if (ethereum) {
+        try {
+          const accounts: string[] = await ethereum.request({ method: "eth_accounts" });
+          if (accounts.length > 0) activeAddress = accounts[0];
+        } catch {}
+      }
+
+      // If no wallet is actually connected, clear Supabase session
+      if (!activeAddress) {
+        await clearSession();
+        setInitialising(false);
+        return;
+      }
+
+      // Wallet is connected — check if we have a valid Supabase session
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session && activeAddress) {
+        // Restore session silently
+        setWalletAddress(activeAddress);
+        setUserId(session.user.id);
+        try {
+          const [dbStrategy, dbBotState] = await Promise.all([
+            ensureStrategy(session.user.id),
+            ensureBotState(session.user.id),
+          ]);
+          setStrategy(dbStrategyToLocal(dbStrategy));
+          setBotStatus(dbBotState.status as BotStatus);
+        } catch {}
+      } else {
+        await clearSession();
+      }
+      setInitialising(false);
+    };
+    init();
+  }, []);
+
+  // Listen for MetaMask account changes
   useEffect(() => {
     const { ethereum } = window as any;
     if (!ethereum) return;
@@ -88,9 +134,10 @@ export default function DashboardPage() {
 
   const handleConnect = async (address: string) => {
     setLoading(true);
+    setConnectError(null);
     try {
       const user = await signInWithWallet(address);
-      if (!user) throw new Error("Auth failed");
+      if (!user) throw new Error("Auth failed — no user returned.");
       setUserId(user.id);
       setWalletAddress(address);
       const [dbStrategy, dbBotState] = await Promise.all([
@@ -99,19 +146,22 @@ export default function DashboardPage() {
       ]);
       setStrategy(dbStrategyToLocal(dbStrategy));
       setBotStatus(dbBotState.status as BotStatus);
-    } catch (e) {
+    } catch (e: any) {
+      const msg = e?.message || e?.error_description || e?.details || "Unknown error — check console";
       console.error("Connect error:", e);
+      setConnectError(msg);
     } finally {
       setLoading(false);
     }
   };
 
   const handleDisconnect = async () => {
-    await supabase.auth.signOut();
+    await clearSession();
     setWalletAddress(null);
     setUserId(null);
     setBotStatus("idle");
     setStrategy(DEFAULT_STRATEGY);
+    setConnectError(null);
   };
 
   const handleStart = async () => {
@@ -132,22 +182,35 @@ export default function DashboardPage() {
   const handleStrategySave = async () => {
     if (!userId) return;
     setSaveStatus("saving");
-    await saveStrategy(userId, {
-      asset: strategy.asset,
-      leverage: strategy.leverage,
-      price_range_low: strategy.priceRangeLow,
-      price_range_high: strategy.priceRangeHigh,
-      grid_levels: strategy.gridLevels,
-      capital_allocation: strategy.capitalAllocation,
-      stop_loss_threshold: strategy.stopLossThreshold,
-      volume_target: strategy.volumeTarget,
-      strategy_type: strategy.strategyType,
-      gas_mode: strategy.gasMode,
-    });
-    setSaveStatus("saved");
-    setEditingStrategy(false);
-    setTimeout(() => setSaveStatus(""), 2000);
+    try {
+      await saveStrategy(userId, {
+        asset: strategy.asset,
+        leverage: strategy.leverage,
+        price_range_low: strategy.priceRangeLow,
+        price_range_high: strategy.priceRangeHigh,
+        grid_levels: strategy.gridLevels,
+        capital_allocation: strategy.capitalAllocation,
+        stop_loss_threshold: strategy.stopLossThreshold,
+        volume_target: strategy.volumeTarget,
+        strategy_type: strategy.strategyType,
+        gas_mode: strategy.gasMode,
+      });
+      setSaveStatus("saved");
+      setEditingStrategy(false);
+      setTimeout(() => setSaveStatus(""), 2000);
+    } catch (e: any) {
+      console.error("Save error:", e?.message || e);
+      setSaveStatus("");
+    }
   };
+
+  if (initialising) {
+    return (
+      <div className="flex items-center justify-center min-h-[70vh]">
+        <div className="font-mono text-sm text-[#6B6860] animate-pulse">Checking session...</div>
+      </div>
+    );
+  }
 
   if (!walletAddress) {
     return (
@@ -157,13 +220,25 @@ export default function DashboardPage() {
             Connect to <span className="text-navy">Dango</span>
           </h1>
           <p className="font-mono text-sm text-[#6B6860]">
-            Link your wallet or import an encrypted key to start the bot
+            Link your wallet and sign to verify ownership
           </p>
         </div>
         {loading ? (
-          <div className="font-mono text-sm text-navy animate-pulse">Setting up your account…</div>
+          <div className="font-mono text-sm text-navy animate-pulse">Setting up your account...</div>
         ) : (
           <WalletConnect onConnect={handleConnect} />
+        )}
+        {connectError && (
+          <div className="card w-full max-w-md p-4 border-crimson/30 bg-crimson/5">
+            <p className="font-mono text-xs text-crimson font-medium mb-1">Connection failed</p>
+            <p className="font-mono text-xs text-crimson/80 leading-relaxed">{connectError}</p>
+            <div className="mt-3 pt-3 border-t border-crimson/20 space-y-1">
+              <p className="font-mono text-xs text-[#6B6860]">Things to check:</p>
+              <p className="font-mono text-xs text-[#6B6860]">· Supabase anon auth enabled?</p>
+              <p className="font-mono text-xs text-[#6B6860]">· .env.local keys correct?</p>
+              <p className="font-mono text-xs text-[#6B6860]">· SQL tables created?</p>
+            </div>
+          </div>
         )}
       </div>
     );
@@ -176,7 +251,7 @@ export default function DashboardPage() {
           <h1 className="font-display font-bold text-2xl text-charcoal">Grid Bot Dashboard</h1>
           <div className="flex items-center gap-2 mt-0.5 flex-wrap">
             <span className="font-mono text-xs text-[#6B6860]">
-              Dango Mainnet · {strategy.asset.replace("perp/", "").toUpperCase()} · {strategy.strategyType === "grid" ? "⚡ Grid" : "👁️ Watch"}
+              Dango Mainnet · {strategy.asset.replace("perp/", "").toUpperCase()} · {strategy.strategyType === "grid" ? "Grid" : "Watch"}
             </span>
             <span className="font-mono text-xs text-navy bg-navy/8 border border-navy/20 px-2 py-0.5 rounded-full">
               {shortenAddress(walletAddress)}
@@ -189,12 +264,7 @@ export default function DashboardPage() {
             </button>
           </div>
         </div>
-        <BotControls
-          status={botStatus}
-          onStart={handleStart}
-          onStop={handleStop}
-          onReset={handleReset}
-        />
+        <BotControls status={botStatus} onStart={handleStart} onStop={handleStop} onReset={handleReset} />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
@@ -223,31 +293,21 @@ export default function DashboardPage() {
             </p>
           </div>
           <div className="flex items-center gap-2">
-            {saveStatus === "saved" && (
-              <span className="font-mono text-xs text-green">✓ Saved to Supabase</span>
-            )}
+            {saveStatus === "saved" && <span className="font-mono text-xs text-green">Saved</span>}
             {botStatus !== "running" && !editingStrategy && (
-              <button onClick={() => setEditingStrategy(true)} className="btn-secondary text-sm py-1.5 px-4">
-                Edit
-              </button>
+              <button onClick={() => setEditingStrategy(true)} className="btn-secondary text-sm py-1.5 px-4">Edit</button>
             )}
             {editingStrategy && (
               <>
-                <button onClick={() => setEditingStrategy(false)} className="btn-secondary text-sm py-1.5 px-4">
-                  Cancel
-                </button>
+                <button onClick={() => setEditingStrategy(false)} className="btn-secondary text-sm py-1.5 px-4">Cancel</button>
                 <button onClick={handleStrategySave} className="btn-primary text-sm py-1.5 px-4">
-                  {saveStatus === "saving" ? "Saving…" : "Save"}
+                  {saveStatus === "saving" ? "Saving..." : "Save"}
                 </button>
               </>
             )}
           </div>
         </div>
-        <StrategyEditor
-          strategy={strategy}
-          onChange={setStrategy}
-          disabled={botStatus === "running" || !editingStrategy}
-        />
+        <StrategyEditor strategy={strategy} onChange={setStrategy} disabled={botStatus === "running" || !editingStrategy} />
       </div>
     </div>
   );

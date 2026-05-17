@@ -1,30 +1,33 @@
-import { createClient } from "./client";
+import { createBrowserClient } from "@supabase/ssr";
 
-const supabase = createClient();
+const supabase = createBrowserClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+);
 
-// Sign in with wallet address using Supabase anonymous auth
-// then link the wallet address to the profile
 export async function signInWithWallet(walletAddress: string) {
-  // Sign in anonymously first
+  // Sign in anonymously
   const { data, error } = await supabase.auth.signInAnonymously();
   if (error) throw error;
 
-  // Upsert the wallet address into profiles
+  const userId = data.user!.id;
+
+  // Upsert profile — on conflict (id already exists) just update wallet_address
   const { error: profileError } = await supabase
     .from("profiles")
-    .upsert({
-      id: data.user!.id,
-      wallet_address: walletAddress.toLowerCase(),
-      auth_method: "wallet",
-    })
-    .eq("id", data.user!.id);
+    .upsert(
+      {
+        id: userId,
+        wallet_address: walletAddress.toLowerCase(),
+        auth_method: "wallet",
+      },
+      { onConflict: "id" }
+    );
 
   if (profileError) throw profileError;
-
   return data.user;
 }
 
-// Load or create default strategy for a user
 export async function ensureStrategy(userId: string) {
   const { data, error } = await supabase
     .from("strategies")
@@ -33,21 +36,19 @@ export async function ensureStrategy(userId: string) {
     .single();
 
   if (error && error.code === "PGRST116") {
-    // No strategy yet — create default
-    const { data: newStrategy, error: insertError } = await supabase
+    const { data: d, error: e } = await supabase
       .from("strategies")
       .insert({ user_id: userId })
       .select()
       .single();
-    if (insertError) throw insertError;
-    return newStrategy;
+    if (e) throw e;
+    return d;
   }
 
   if (error) throw error;
   return data;
 }
 
-// Load or create default bot state for a user
 export async function ensureBotState(userId: string) {
   const { data, error } = await supabase
     .from("bot_states")
@@ -56,29 +57,29 @@ export async function ensureBotState(userId: string) {
     .single();
 
   if (error && error.code === "PGRST116") {
-    const { data: newState, error: insertError } = await supabase
+    const { data: d, error: e } = await supabase
       .from("bot_states")
       .insert({ user_id: userId })
       .select()
       .single();
-    if (insertError) throw insertError;
-    return newState;
+    if (e) throw e;
+    return d;
   }
 
   if (error) throw error;
   return data;
 }
 
-// Save strategy changes
 export async function saveStrategy(userId: string, strategy: Record<string, any>) {
   const { error } = await supabase
     .from("strategies")
-    .upsert({ user_id: userId, ...strategy, updated_at: new Date().toISOString() })
-    .eq("user_id", userId);
+    .upsert(
+      { user_id: userId, ...strategy, updated_at: new Date().toISOString() },
+      { onConflict: "user_id" }
+    );
   if (error) throw error;
 }
 
-// Update bot state
 export async function updateBotState(userId: string, patch: Record<string, any>) {
   const { error } = await supabase
     .from("bot_states")
@@ -87,21 +88,6 @@ export async function updateBotState(userId: string, patch: Record<string, any>)
   if (error) throw error;
 }
 
-// Log an order
-export async function logOrder(userId: string, order: {
-  order_id: string;
-  side: "BUY" | "SELL";
-  price: number;
-  size: number;
-  status: "open" | "filled" | "cancelled";
-  filled_at?: number;
-  pnl?: number;
-}) {
-  const { error } = await supabase.from("orders").insert({ user_id: userId, ...order });
-  if (error) throw error;
-}
-
-// Fetch orders for a user
 export async function fetchOrders(userId: string) {
   const { data, error } = await supabase
     .from("orders")
@@ -113,7 +99,6 @@ export async function fetchOrders(userId: string) {
   return data;
 }
 
-// Fetch bot state
 export async function fetchBotState(userId: string) {
   const { data, error } = await supabase
     .from("bot_states")

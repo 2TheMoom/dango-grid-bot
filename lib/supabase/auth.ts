@@ -8,9 +8,10 @@ const supabase = createBrowserClient(
 export async function signInWithWallet(walletAddress: string) {
   const { data, error } = await supabase.auth.signInAnonymously();
   if (error) throw error;
+  const userId = data.user!.id;
   const { error: profileError } = await supabase
     .from("profiles")
-    .upsert({ id: data.user!.id, wallet_address: walletAddress.toLowerCase(), auth_method: "wallet" });
+    .upsert({ id: userId, wallet_address: walletAddress.toLowerCase(), auth_method: "wallet" }, { onConflict: "id" });
   if (profileError) throw profileError;
   return data.user;
 }
@@ -38,7 +39,7 @@ export async function ensureBotState(userId: string) {
 }
 
 export async function saveStrategy(userId: string, strategy: Record<string, any>) {
-  const { error } = await supabase.from("strategies").upsert({ user_id: userId, ...strategy, updated_at: new Date().toISOString() });
+  const { error } = await supabase.from("strategies").upsert({ user_id: userId, ...strategy, updated_at: new Date().toISOString() }, { onConflict: "user_id" });
   if (error) throw error;
 }
 
@@ -57,6 +58,10 @@ export async function fetchBotState(userId: string) {
   const { data, error } = await supabase.from("bot_states").select("*").eq("user_id", userId).single();
   if (error) throw error;
   return data;
+}
+
+export async function clearSession() {
+  await supabase.auth.signOut();
 }
 
 export { supabase };
