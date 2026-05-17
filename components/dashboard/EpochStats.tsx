@@ -3,12 +3,19 @@
 interface Props {
   walletAddress: string;
   userId: string | null;
+  volumeTarget?: number;
 }
 
-export default function EpochStats({ walletAddress, userId }: Props) {
+export default function EpochStats({ walletAddress, userId, volumeTarget = 3000 }: Props) {
   const volume = 0;
-  const target = 5000;
+  const target = volumeTarget;
   const pct = Math.min(100, (volume / target) * 100);
+
+  const formatTarget = (v: number) => {
+    if (v >= 1000000) return "$1M";
+    if (v >= 1000) return `$${v / 1000}K`;
+    return `$${v}`;
+  };
 
   return (
     <div className="card p-5">
@@ -18,7 +25,7 @@ export default function EpochStats({ walletAddress, userId }: Props) {
           <span className="label">Volume</span>
           <span className="font-mono text-xs text-charcoal font-medium">
             ${volume.toLocaleString()}{" "}
-            <span className="text-[#6B6860]">/ ${target.toLocaleString()}</span>
+            <span className="text-[#6B6860]">/ {formatTarget(target)}</span>
           </span>
         </div>
         <div className="h-2 bg-background rounded-full overflow-hidden">
@@ -34,11 +41,11 @@ export default function EpochStats({ walletAddress, userId }: Props) {
       <div className="grid-line pt-4 grid grid-cols-2 gap-3">
         <div>
           <p className="label mb-1">DNG Points</p>
-          <p className="font-mono font-semibold text-green text-lg">—</p>
+          <p className="font-mono font-semibold text-green text-lg">--</p>
         </div>
         <div>
           <p className="label mb-1">Epoch Ends</p>
-          <p className="font-mono font-semibold text-charcoal text-lg">—</p>
+          <p className="font-mono font-semibold text-charcoal text-lg">--</p>
         </div>
       </div>
       <div className="mt-3 pt-3 border-t border-[#D8D4CC] flex items-center justify-between">

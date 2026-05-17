@@ -16,7 +16,7 @@ import {
   saveStrategy,
   updateBotState,
   supabase,
-} from "../../lib/supabase/auth";
+} from "@/lib/supabase/auth";
 
 export type BotStatus = "idle" | "running" | "stopped" | "error";
 
@@ -28,6 +28,9 @@ export type Strategy = {
   gridLevels: number;
   capitalAllocation: number;
   stopLossThreshold: number;
+  volumeTarget: number;
+  strategyType: "grid" | "watch";
+  gasMode: "low" | "normal" | "fast";
 };
 
 const DEFAULT_STRATEGY: Strategy = {
@@ -38,6 +41,9 @@ const DEFAULT_STRATEGY: Strategy = {
   gridLevels: 10,
   capitalAllocation: 100,
   stopLossThreshold: 70,
+  volumeTarget: 3000,
+  strategyType: "grid",
+  gasMode: "low",
 };
 
 function shortenAddress(addr: string) {
@@ -47,13 +53,16 @@ function shortenAddress(addr: string) {
 
 function dbStrategyToLocal(db: any): Strategy {
   return {
-    asset: db.asset,
-    leverage: db.leverage,
-    priceRangeLow: db.price_range_low,
-    priceRangeHigh: db.price_range_high,
-    gridLevels: db.grid_levels,
-    capitalAllocation: db.capital_allocation,
-    stopLossThreshold: db.stop_loss_threshold,
+    asset: db.asset ?? DEFAULT_STRATEGY.asset,
+    leverage: db.leverage ?? DEFAULT_STRATEGY.leverage,
+    priceRangeLow: db.price_range_low ?? DEFAULT_STRATEGY.priceRangeLow,
+    priceRangeHigh: db.price_range_high ?? DEFAULT_STRATEGY.priceRangeHigh,
+    gridLevels: db.grid_levels ?? DEFAULT_STRATEGY.gridLevels,
+    capitalAllocation: db.capital_allocation ?? DEFAULT_STRATEGY.capitalAllocation,
+    stopLossThreshold: db.stop_loss_threshold ?? DEFAULT_STRATEGY.stopLossThreshold,
+    volumeTarget: db.volume_target ?? DEFAULT_STRATEGY.volumeTarget,
+    strategyType: db.strategy_type ?? DEFAULT_STRATEGY.strategyType,
+    gasMode: db.gas_mode ?? DEFAULT_STRATEGY.gasMode,
   };
 }
 
@@ -64,9 +73,8 @@ export default function DashboardPage() {
   const [strategy, setStrategy] = useState<Strategy>(DEFAULT_STRATEGY);
   const [editingStrategy, setEditingStrategy] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [saveStatus, setSaveStatus] = useState<"" | "saving" | "saved">(""); 
+  const [saveStatus, setSaveStatus] = useState<"" | "saving" | "saved">("");
 
-  // Listen for MetaMask account changes
   useEffect(() => {
     const { ethereum } = window as any;
     if (!ethereum) return;
@@ -85,13 +93,10 @@ export default function DashboardPage() {
       if (!user) throw new Error("Auth failed");
       setUserId(user.id);
       setWalletAddress(address);
-
-      // Load saved strategy + bot state from DB
       const [dbStrategy, dbBotState] = await Promise.all([
         ensureStrategy(user.id),
         ensureBotState(user.id),
       ]);
-
       setStrategy(dbStrategyToLocal(dbStrategy));
       setBotStatus(dbBotState.status as BotStatus);
     } catch (e) {
@@ -135,6 +140,9 @@ export default function DashboardPage() {
       grid_levels: strategy.gridLevels,
       capital_allocation: strategy.capitalAllocation,
       stop_loss_threshold: strategy.stopLossThreshold,
+      volume_target: strategy.volumeTarget,
+      strategy_type: strategy.strategyType,
+      gas_mode: strategy.gasMode,
     });
     setSaveStatus("saved");
     setEditingStrategy(false);
@@ -163,16 +171,18 @@ export default function DashboardPage() {
 
   return (
     <div className="flex flex-col gap-5">
-      {/* Top bar */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <h1 className="font-display font-bold text-2xl text-charcoal">Grid Bot Dashboard</h1>
-          <div className="flex items-center gap-2 mt-0.5">
+          <div className="flex items-center gap-2 mt-0.5 flex-wrap">
             <span className="font-mono text-xs text-[#6B6860]">
-              Dango Mainnet · {strategy.asset.replace("perp/", "").toUpperCase()}
+              Dango Mainnet · {strategy.asset.replace("perp/", "").toUpperCase()} · {strategy.strategyType === "grid" ? "⚡ Grid" : "👁️ Watch"}
             </span>
             <span className="font-mono text-xs text-navy bg-navy/8 border border-navy/20 px-2 py-0.5 rounded-full">
               {shortenAddress(walletAddress)}
+            </span>
+            <span className="font-mono text-xs text-green bg-green/8 border border-green/20 px-2 py-0.5 rounded-full">
+              Gas: {strategy.gasMode}
             </span>
             <button onClick={handleDisconnect} className="font-mono text-xs text-crimson hover:underline">
               Disconnect
@@ -187,18 +197,16 @@ export default function DashboardPage() {
         />
       </div>
 
-      {/* Main grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
         <div className="lg:col-span-2">
           <GridChart strategy={strategy} botStatus={botStatus} />
         </div>
         <div className="flex flex-col gap-5">
-          <EpochStats walletAddress={walletAddress} userId={userId} />
+          <EpochStats walletAddress={walletAddress} userId={userId} volumeTarget={strategy.volumeTarget} />
           <PnLTracker botStatus={botStatus} walletAddress={walletAddress} userId={userId} />
         </div>
       </div>
 
-      {/* Second row */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
         <div className="lg:col-span-2">
           <OrderBook walletAddress={walletAddress} userId={userId} />
@@ -206,7 +214,6 @@ export default function DashboardPage() {
         <VaultStats walletAddress={walletAddress} userId={userId} />
       </div>
 
-      {/* Strategy editor */}
       <div className="card p-5">
         <div className="flex items-center justify-between mb-4">
           <div>
@@ -217,7 +224,7 @@ export default function DashboardPage() {
           </div>
           <div className="flex items-center gap-2">
             {saveStatus === "saved" && (
-              <span className="font-mono text-xs text-green">✓ Saved</span>
+              <span className="font-mono text-xs text-green">✓ Saved to Supabase</span>
             )}
             {botStatus !== "running" && !editingStrategy && (
               <button onClick={() => setEditingStrategy(true)} className="btn-secondary text-sm py-1.5 px-4">

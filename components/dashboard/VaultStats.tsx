@@ -8,9 +8,7 @@ interface Props {
 export default function VaultStats({ walletAddress, userId }: Props) {
   return (
     <div className="card p-5">
-      <h2 className="font-display font-semibold text-charcoal text-base mb-4">
-        DLP Vault
-      </h2>
+      <h2 className="font-display font-semibold text-charcoal text-base mb-4">DLP Vault</h2>
       <div className="space-y-3">
         <div className="flex justify-between">
           <span className="label">My Deposit</span>
@@ -34,14 +32,12 @@ export default function VaultStats({ walletAddress, userId }: Props) {
           Deposit into the DLP vault on Dango to earn passive points between trading sessions.
         </p>
       </div>
-      
-        href="https://dango.exchange"
-        target="_blank"
-        rel="noopener noreferrer"
+      <button
+        onClick={() => window.open("https://dango.exchange", "_blank")}
         className="mt-3 btn-secondary w-full text-sm py-2 text-center block"
       >
         Manage on Dango
-      </a>
+      </button>
     </div>
   );
 }
