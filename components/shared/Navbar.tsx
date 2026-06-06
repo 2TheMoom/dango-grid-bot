@@ -7,10 +7,10 @@ import { usePathname } from "next/navigation";
 const LogoIcon = () => (
   <svg width="28" height="28" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
     <rect width="32" height="32" rx="7" fill="#1F3A8F"/>
-    <line x1="11" y1="4" x2="11" y2="28" stroke="#E9E6DF" stroke-width="0.6" stroke-opacity="0.2"/>
-    <line x1="21" y1="4" x2="21" y2="28" stroke="#E9E6DF" stroke-width="0.6" stroke-opacity="0.2"/>
-    <line x1="4" y1="11" x2="28" y2="11" stroke="#E9E6DF" stroke-width="0.6" stroke-opacity="0.2"/>
-    <line x1="4" y1="21" x2="28" y2="21" stroke="#E9E6DF" stroke-width="0.6" stroke-opacity="0.2"/>
+    <line x1="11" y1="4" x2="11" y2="28" stroke="#E9E6DF" strokeWidth="0.6" strokeOpacity="0.2"/>
+    <line x1="21" y1="4" x2="21" y2="28" stroke="#E9E6DF" strokeWidth="0.6" strokeOpacity="0.2"/>
+    <line x1="4" y1="11" x2="28" y2="11" stroke="#E9E6DF" strokeWidth="0.6" strokeOpacity="0.2"/>
+    <line x1="4" y1="21" x2="28" y2="21" stroke="#E9E6DF" strokeWidth="0.6" strokeOpacity="0.2"/>
     <rect x="5" y="22" width="4" height="5" rx="1" fill="#1A6B3C"/>
     <rect x="11" y="18" width="4" height="9" rx="1" fill="#1A6B3C"/>
     <rect x="17" y="13" width="4" height="14" rx="1" fill="#1A6B3C"/>
