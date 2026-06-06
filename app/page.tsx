@@ -1,4 +1,6 @@
-import Link from "next/link";
+const fs = require('fs');
+
+fs.writeFileSync('app/page.tsx', `import Link from "next/link";
 import Navbar from "@/components/shared/Navbar";
 import Footer from "@/components/shared/Footer";
 
@@ -66,7 +68,7 @@ export default function LandingPage() {
             <br />
             <span className="text-navy">DANGO TRADING</span>
             <br />
-            STRATEGY
+            WITH GRIDASHI
           </h1>
           <p className="font-mono text-sm text-[#6B6860] max-w-xl mx-auto leading-relaxed mb-6">
             Grid or Watch trading. $3K to $1M weekly volume targets. All limit orders — lowest fees on Dango. Earn DNG airdrop points every epoch.
@@ -224,4 +226,6 @@ export default function LandingPage() {
       <Footer />
     </div>
   );
-}
+}`);
+
+console.log('app/page.tsx written successfully');

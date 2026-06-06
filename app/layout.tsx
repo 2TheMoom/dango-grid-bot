@@ -2,12 +2,12 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Dango Grid Bot — Automated DeFi Trading",
+  title: "Gridashi — Automated Dango Trading",
   description:
-    "Automated grid trading bot for Dango Exchange. Farm volume, earn airdrop points, and manage your DeFi strategy — all from one dashboard.",
+    "Automated grid and watch trading bot for Dango Exchange. Farm volume, earn DNG airdrop points, and manage your DeFi strategy from one dashboard.",
   openGraph: {
-    title: "Dango Grid Bot",
-    description: "Automated grid trading on Dango Exchange",
+    title: "Gridashi",
+    description: "Automated grid and watch trading on Dango Exchange",
     type: "website",
   },
 };
