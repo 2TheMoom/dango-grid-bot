@@ -9,13 +9,14 @@
     "lint": "next lint"
   },
   "dependencies": {
-    "@left-curve/sdk": "latest",
+    "@left-curve/sdk": "^1.0.0",
     "@supabase/ssr": "^0.3.0",
     "@supabase/supabase-js": "^2.105.4",
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.1",
-    "ethers": "^6.12.1",
+    "ethers": "^6.16.0",
     "framer-motion": "^11.2.10",
+    "graphql-ws": "^6.0.8",
     "lucide-react": "^0.383.0",
     "next": "^16.2.6",
     "react": "^18",
