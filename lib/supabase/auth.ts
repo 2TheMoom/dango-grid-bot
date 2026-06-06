@@ -8,34 +8,18 @@ const supabase = createBrowserClient(
 export async function signInWithWallet(walletAddress: string) {
   const normalized = walletAddress.toLowerCase();
 
-  // Check if a profile with this wallet already exists
-  const { data: existing } = await supabase
-    .from("profiles")
-    .select("id")
-    .eq("wallet_address", normalized)
-    .maybeSingle();
-
-  if (existing) {
-    // Wallet already registered — just sign in anonymously and update profile
-    const { data, error } = await supabase.auth.signInAnonymously();
-    if (error) throw new Error("SignIn failed: " + error.message);
-    const userId = data.user!.id;
-    await supabase
-      .from("profiles")
-      .upsert({ id: userId, wallet_address: normalized, auth_method: "wallet" }, { onConflict: "id" });
-    return data.user;
-  }
-
-  // New wallet — sign in and create profile
   const { data, error } = await supabase.auth.signInAnonymously();
   if (error) throw new Error("SignIn failed: " + error.message);
   const userId = data.user!.id;
 
   const { error: profileError } = await supabase
     .from("profiles")
-    .insert({ id: userId, wallet_address: normalized, auth_method: "wallet" });
+    .upsert(
+      { id: userId, wallet_address: normalized, auth_method: "wallet" },
+      { onConflict: "id" }
+    );
 
-  if (profileError) throw new Error("Profile create failed: " + profileError.message);
+  if (profileError) throw new Error("Profile upsert failed: " + profileError.message);
   return data.user;
 }
 
