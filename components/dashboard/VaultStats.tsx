@@ -13,21 +13,21 @@ export default function VaultStats({ walletAddress, userId }: Props) {
       <h2 className="font-display font-semibold text-charcoal text-base mb-4">DLP Vault</h2>
       <div className="space-y-3">
         <div className="flex justify-between">
-          <span className="label">Total Liquidity</span>
+          <span className="label">Share Supply</span>
           <span className="font-mono text-sm font-semibold text-charcoal">
-            {vault ? "$" + vault.totalLiquidity.toLocaleString(undefined, { maximumFractionDigits: 0 }) : "--"}
+            {vault != null ? (vault.shareSupply ?? 0).toLocaleString(undefined, { maximumFractionDigits: 0 }) : "--"}
           </span>
         </div>
         <div className="flex justify-between">
           <span className="label">Share Price</span>
           <span className="font-mono text-sm font-medium text-charcoal">
-            {vault ? "$" + vault.sharePrice.toFixed(4) : "--"}
+            {vault != null ? "$" + (vault.sharePrice ?? 1).toFixed(4) : "--"}
           </span>
         </div>
         <div className="flex justify-between">
           <span className="label">APY</span>
           <span className="font-mono text-sm font-medium text-green">
-            {vault ? vault.apy.toFixed(2) + "%" : "--"}
+            {vault != null ? (vault.apy ?? 0).toFixed(2) + "%" : "--"}
           </span>
         </div>
       </div>
