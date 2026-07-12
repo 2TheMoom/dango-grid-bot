@@ -1,6 +1,6 @@
 "use client";
 
-const DANGO_API = "https://api-mainnet.dango.zone";
+const DANGO_API = "/api/proxy";
 
 function toSnake(s: string): string {
   return s.replace(/[A-Z]/g, (l) => "_" + l.toLowerCase());
@@ -44,7 +44,10 @@ export async function queryApp(query: Record<string, any>, height?: number) {
     height: height || undefined,
   });
   if (!data?.queryApp) return null;
-  return camelKeys(JSON.parse(data.queryApp));
+  const raw = typeof data.queryApp === "string"
+    ? JSON.parse(data.queryApp)
+    : data.queryApp;
+  return camelKeys(raw);
 }
 
 let _appConfig: any = null;

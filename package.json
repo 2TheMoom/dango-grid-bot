@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "postinstall": "node scripts/fix-left-curve-sdk.js"
   },
   "dependencies": {
     "@left-curve/sdk": "^1.0.0",

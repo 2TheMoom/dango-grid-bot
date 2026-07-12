@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { setDangoSession } from "@/lib/dango/signerStore";
 
 type Tab = "wallet" | "key";
 
@@ -15,7 +16,7 @@ function generateNonce() {
 export default function WalletConnect({ onConnect }: Props) {
   const [tab, setTab] = useState<Tab>("wallet");
   const [keyValue, setKeyValue] = useState("");
-  const [password, setPassword] = useState("");
+  const [dangoAddress, setDangoAddress] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [step, setStep] = useState<"connect" | "sign">("connect");
@@ -75,23 +76,14 @@ export default function WalletConnect({ onConnect }: Props) {
   };
 
   const handleKeyImport = async () => {
-    if (!keyValue || !password) { setError("Both private key and password are required."); return; }
+    if (!keyValue || !dangoAddress) { setError("Both private key and Dango account address are required."); return; }
     setLoading(true);
     setError("");
     try {
-      const enc = new TextEncoder();
-      const keyMaterial = await crypto.subtle.importKey("raw", enc.encode(password), { name: "PBKDF2" }, false, ["deriveKey"]);
-      const salt = crypto.getRandomValues(new Uint8Array(16));
-      const aesKey = await crypto.subtle.deriveKey(
-        { name: "PBKDF2", salt, iterations: 100000, hash: "SHA-256" },
-        keyMaterial, { name: "AES-GCM", length: 256 }, false, ["encrypt"]
-      );
-      const iv = crypto.getRandomValues(new Uint8Array(12));
-      await crypto.subtle.encrypt({ name: "AES-GCM", iv }, aesKey, enc.encode(keyValue));
-      const displayAddr = keyValue.startsWith("0x") ? keyValue : "0x" + keyValue;
-      onConnect(displayAddr);
+      setDangoSession(keyValue, dangoAddress);
+      onConnect(dangoAddress);
     } catch (e: any) {
-      setError("Encryption failed. Check your key format.");
+      setError(e?.message || "Failed to import key. Check the key format.");
     } finally {
       setLoading(false);
     }
@@ -148,7 +140,8 @@ export default function WalletConnect({ onConnect }: Props) {
         <div className="flex flex-col gap-4">
           <div className="p-3 rounded bg-crimson/8 border border-crimson/20">
             <p className="font-mono text-xs text-crimson leading-relaxed">
-              Your key is encrypted in-browser with AES-256. We never store or transmit your plaintext key.
+              Your key is held in memory for this tab only — never written to disk, never sent anywhere.
+              Closing or refreshing the page clears it; you'll need to re-enter it next session.
             </p>
           </div>
           <div>
@@ -157,12 +150,13 @@ export default function WalletConnect({ onConnect }: Props) {
               className="w-full font-mono text-xs bg-background border border-[#D8D4CC] rounded px-3 py-2.5 text-charcoal placeholder-[#6B6860] focus:outline-none focus:border-navy transition-colors" />
           </div>
           <div>
-            <label className="label mb-1.5 block">Encryption Password</label>
-            <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Strong password..."
+            <label className="label mb-1.5 block">Dango Account Address</label>
+            <input type="text" value={dangoAddress} onChange={(e) => setDangoAddress(e.target.value)} placeholder="0x..."
               className="w-full font-mono text-xs bg-background border border-[#D8D4CC] rounded px-3 py-2.5 text-charcoal placeholder-[#6B6860] focus:outline-none focus:border-navy transition-colors" />
+            <p className="font-mono text-xs text-[#6B6860] mt-1">The account address you already trade from on Dango — not derived from the key.</p>
           </div>
           <button onClick={handleKeyImport} disabled={loading} className="btn-primary w-full py-3 text-sm">
-            {loading ? "Encrypting..." : "Encrypt and Connect"}
+            {loading ? "Connecting..." : "Connect"}
           </button>
         </div>
       )}

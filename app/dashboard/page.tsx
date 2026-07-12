@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import GridChart from "@/components/dashboard/GridChart";
 import PnLTracker from "@/components/dashboard/PnLTracker";
 import EpochStats from "@/components/dashboard/EpochStats";
@@ -18,6 +18,8 @@ import {
   clearSession,
   supabase,
 } from "@/lib/supabase/auth";
+import { useDangoSession, clearDangoSession } from "@/lib/dango/signerStore";
+import { placeGridOrders, startGridMaintenance, cancelAllOrders } from "@/lib/dango/gridBot";
 
 export type BotStatus = "idle" | "running" | "stopped" | "error";
 
@@ -77,6 +79,9 @@ export default function DashboardPage() {
   const [saveStatus, setSaveStatus] = useState<"" | "saving" | "saved">("");
   const [connectError, setConnectError] = useState<string | null>(null);
   const [initialising, setInitialising] = useState(true);
+  const [botError, setBotError] = useState<string | null>(null);
+  const dangoSession = useDangoSession();
+  const stopMaintenanceRef = useRef<(() => void) | null>(null);
 
   // On mount — clear any stale Supabase session so dashboard always starts fresh
   useEffect(() => {
@@ -120,6 +125,11 @@ export default function DashboardPage() {
     init();
   }, []);
 
+  // Stop the maintenance loop if the component unmounts while the bot is running
+  useEffect(() => {
+    return () => stopMaintenanceRef.current?.();
+  }, []);
+
   // Listen for MetaMask account changes
   useEffect(() => {
     const { ethereum } = window as any;
@@ -156,20 +166,45 @@ export default function DashboardPage() {
   };
 
   const handleDisconnect = async () => {
+    stopMaintenanceRef.current?.();
+    stopMaintenanceRef.current = null;
+    clearDangoSession();
     await clearSession();
     setWalletAddress(null);
     setUserId(null);
     setBotStatus("idle");
     setStrategy(DEFAULT_STRATEGY);
     setConnectError(null);
+    setBotError(null);
   };
 
   const handleStart = async () => {
-    setBotStatus("running");
-    if (userId) await updateBotState(userId, { status: "running" });
+    if (!dangoSession) {
+      setBotError("No signing key loaded — reconnect via \"Import Key\" to let the bot sign orders.");
+      return;
+    }
+    setBotError(null);
+    try {
+      await placeGridOrders(dangoSession, strategy);
+      stopMaintenanceRef.current = startGridMaintenance(dangoSession, strategy, (err) =>
+        setBotError(err.message)
+      );
+      setBotStatus("running");
+      if (userId) await updateBotState(userId, { status: "running" });
+    } catch (e: any) {
+      setBotError(e?.message || "Failed to start bot.");
+      setBotStatus("error");
+    }
   };
 
   const handleStop = async () => {
+    stopMaintenanceRef.current?.();
+    stopMaintenanceRef.current = null;
+    try {
+      if (dangoSession) await cancelAllOrders(dangoSession);
+    } catch (e: any) {
+      setBotError(e?.message || "Failed to cancel open orders.");
+    }
     setBotStatus("stopped");
     if (userId) await updateBotState(userId, { status: "stopped" });
   };
@@ -266,6 +301,20 @@ export default function DashboardPage() {
         </div>
         <BotControls status={botStatus} onStart={handleStart} onStop={handleStop} onReset={handleReset} />
       </div>
+
+      {!dangoSession && (
+        <div className="card p-3 border-crimson/30 bg-crimson/5">
+          <p className="font-mono text-xs text-crimson leading-relaxed">
+            No signing key loaded for this session — the bot can read the market but can't place orders.
+            Disconnect and reconnect via the "Import Key" tab to trade.
+          </p>
+        </div>
+      )}
+      {botError && (
+        <div className="card p-3 border-crimson/30 bg-crimson/5">
+          <p className="font-mono text-xs text-crimson leading-relaxed">{botError}</p>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
         <div className="lg:col-span-2">
