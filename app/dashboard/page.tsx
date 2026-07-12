@@ -19,7 +19,7 @@ import {
   supabase,
 } from "@/lib/supabase/auth";
 import { useDangoSession, clearDangoSession } from "@/lib/dango/signerStore";
-import { placeGridOrders, startGridMaintenance, cancelAllOrders } from "@/lib/dango/gridBot";
+import { placeGridOrders, startGridMaintenance, cancelAllOrders, getEquity, type GridHaltReason } from "@/lib/dango/gridBot";
 
 export type BotStatus = "idle" | "running" | "stopped" | "error";
 
@@ -178,6 +178,17 @@ export default function DashboardPage() {
     setBotError(null);
   };
 
+  const handleHalt = async (reason: GridHaltReason) => {
+    stopMaintenanceRef.current = null;
+    const message =
+      reason.type === "range_exit"
+        ? `Price hit $${reason.price.toFixed(2)}, outside your configured range [$${strategy.priceRangeLow}, $${strategy.priceRangeHigh}] — bot stopped, all orders cancelled.`
+        : `Stop-loss triggered — equity down ${reason.drawdownPct.toFixed(1)}% (threshold ${strategy.stopLossThreshold}%). Bot stopped, all orders cancelled.`;
+    setBotError(message);
+    setBotStatus("error");
+    if (userId) await updateBotState(userId, { status: "error" });
+  };
+
   const handleStart = async () => {
     if (!dangoSession) {
       setBotError("No signing key loaded — reconnect via \"Import Key\" to let the bot sign orders.");
@@ -185,9 +196,17 @@ export default function DashboardPage() {
     }
     setBotError(null);
     try {
+      const baselineEquity = await getEquity(dangoSession);
+      if (baselineEquity == null) {
+        throw new Error("Could not read account equity — refusing to start without it, since stop-loss can't be enforced blind.");
+      }
       await placeGridOrders(dangoSession, strategy);
-      stopMaintenanceRef.current = startGridMaintenance(dangoSession, strategy, (err) =>
-        setBotError(err.message)
+      stopMaintenanceRef.current = startGridMaintenance(
+        dangoSession,
+        strategy,
+        baselineEquity,
+        (err) => setBotError(err.message),
+        handleHalt
       );
       setBotStatus("running");
       if (userId) await updateBotState(userId, { status: "running" });

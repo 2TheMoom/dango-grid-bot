@@ -43,6 +43,14 @@ export async function getMidPrice(session: DangoSession, pairId: string): Promis
   return stat?.currentPrice ? parseFloat(stat.currentPrice) : null;
 }
 
+export async function getEquity(session: DangoSession): Promise<number | null> {
+  const state = await session.signerClient.getPerpsUserStateExtended({
+    user: session.address,
+    includeEquity: true,
+  });
+  return state?.equity != null ? parseFloat(state.equity) : null;
+}
+
 export async function placeLimitOrder(session: DangoSession, plan: GridOrderPlan) {
   return session.signerClient.submitPerpsOrder({
     sender: session.address,
@@ -72,26 +80,68 @@ export async function cancelAllOrders(session: DangoSession) {
 
 const MAINTENANCE_INTERVAL_MS = 30_000;
 
+export type GridHaltReason =
+  | { type: "range_exit"; price: number }
+  | { type: "stop_loss"; drawdownPct: number };
+
 /**
  * Periodically refills grid levels that have been filled/canceled since the
- * last check. Does not reprice or cancel existing resting orders — it only
- * tops up missing levels, so it's safe to call repeatedly.
+ * last check. Does not reprice existing resting orders — it only tops up
+ * missing levels, so it's safe to call repeatedly.
+ *
+ * Also enforces two safety stops, both of which cancel all orders and halt
+ * the loop (the caller must react to `onHalt` by flipping bot status —
+ * this function does not restart itself):
+ *  - price wanders outside the configured grid range, where the ladder is
+ *    no longer meaningful
+ *  - equity drawdown from `baselineEquity` reaches `strategy.stopLossThreshold`%
+ *
+ * `baselineEquity` should be the account equity read at bot start; pass
+ * `null` to skip stop-loss enforcement (e.g. if that read failed).
  */
 export function startGridMaintenance(
   session: DangoSession,
   strategy: Strategy,
-  onError: (err: Error) => void
+  baselineEquity: number | null,
+  onError: (err: Error) => void,
+  onHalt: (reason: GridHaltReason) => void
 ): () => void {
   let cancelled = false;
+  let intervalId: ReturnType<typeof setInterval>;
+
+  const stop = () => {
+    cancelled = true;
+    clearInterval(intervalId);
+  };
+
+  const halt = async (reason: GridHaltReason) => {
+    stop();
+    await cancelAllOrders(session).catch(() => {});
+    onHalt(reason);
+  };
 
   const tick = async () => {
     if (cancelled) return;
     try {
-      const [midPrice, openOrders] = await Promise.all([
+      const [midPrice, openOrders, equity] = await Promise.all([
         getMidPrice(session, strategy.asset),
         session.signerClient.getPerpsOrdersByUser({ user: session.address }),
+        baselineEquity != null ? getEquity(session) : Promise.resolve(null),
       ]);
       if (midPrice == null) return;
+
+      if (midPrice < strategy.priceRangeLow || midPrice > strategy.priceRangeHigh) {
+        await halt({ type: "range_exit", price: midPrice });
+        return;
+      }
+
+      if (baselineEquity != null && equity != null) {
+        const drawdownPct = ((baselineEquity - equity) / baselineEquity) * 100;
+        if (drawdownPct >= strategy.stopLossThreshold) {
+          await halt({ type: "stop_loss", drawdownPct });
+          return;
+        }
+      }
 
       const openPrices = new Set(
         Object.values(openOrders)
@@ -107,11 +157,8 @@ export function startGridMaintenance(
     }
   };
 
-  const intervalId = setInterval(tick, MAINTENANCE_INTERVAL_MS);
+  intervalId = setInterval(tick, MAINTENANCE_INTERVAL_MS);
   tick();
 
-  return () => {
-    cancelled = true;
-    clearInterval(intervalId);
-  };
+  return stop;
 }
